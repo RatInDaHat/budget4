@@ -3,7 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { api, type AccountDTO, type MasterDTO, type PayeeDTO, type StateDTO } from './api.ts';
 import { configureFormat } from './format.ts';
 
-export type View = { kind: 'budget' } | { kind: 'account'; accountId: string | null } | { kind: 'scheduled' } | { kind: 'settings' };
+export type View = { kind: 'budget' } | { kind: 'account'; accountId: string | null } | { kind: 'scheduled' } | { kind: 'payees' } | { kind: 'settings' };
 
 interface Ctx {
   state: StateDTO | null;

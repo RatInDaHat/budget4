@@ -44,6 +44,9 @@ export function Sidebar() {
         <button className={`nav-item ${view.kind === 'scheduled' ? 'active' : ''}`} onClick={() => setView({ kind: 'scheduled' })}>
           Scheduled
         </button>
+        <button className={`nav-item ${view.kind === 'payees' ? 'active' : ''}`} onClick={() => setView({ kind: 'payees' })}>
+          Payees
+        </button>
       </nav>
 
       <div className="acct-group">

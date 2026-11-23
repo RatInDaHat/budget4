@@ -3,6 +3,7 @@ import { api, type StateDTO } from './api.ts';
 import { BudgetView } from './components/BudgetView.tsx';
 import { LockScreen } from './components/LockScreen.tsx';
 import { OpenBudget } from './components/OpenBudget.tsx';
+import { PayeesView } from './components/PayeesView.tsx';
 import { Register } from './components/Register.tsx';
 import { ScheduledView } from './components/ScheduledView.tsx';
 import { Settings } from './components/Settings.tsx';
@@ -54,6 +55,7 @@ function Shell() {
         {view.kind === 'budget' && <BudgetView />}
         {view.kind === 'account' && <Register accountId={view.accountId} key={view.accountId ?? 'all'} />}
         {view.kind === 'scheduled' && <ScheduledView />}
+        {view.kind === 'payees' && <PayeesView />}
         {view.kind === 'settings' && <Settings />}
       </main>
       {toast && (

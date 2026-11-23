@@ -25,6 +25,9 @@ Written in Rust (the format, sync engine and budget math) with a React UI in a n
 * Registers: click a column header to sort (again to reverse), drag header edges to resize; each
   account shows its scheduled transactions in a collapsible panel at the bottom. The Scheduled
   page sorts by any column too.
+* Payees: rename one, or merge several into one (every transaction moves to the payee you keep).
+* Credit cards: each budgeted credit card gets a "Pre-YNAB Debt" category, as in YNAB 4. A zero or
+  negative starting balance is budgeted there to pay off; a positive one is income.
 * Undo / redo (Ctrl+Z, Ctrl+Y) for every edit this session, imports included. An undo is saved as a
   new change, so it syncs to YNAB 4 and other devices; it refuses if the record was changed since.
 * New budgets in YNAB 4's own layout (YNAB 4 can open them).
@@ -74,9 +77,8 @@ next to the repository) and are skipped without it. **Point it at a copy**, neve
 ## Not done yet
 
 * QIF import; exports (QIF/CSV).
-* Reports, a payee manager (rename/merge exist in the engine), payee rename rules and locations
+* Reports; payee rename rules and locations
   (kept and synced, not editable).
-* Credit-card "Pre-YNAB debt" categories for new credit-card accounts.
 * A separate PIN per budget (today there's one PIN for the app), and a way to recover a forgotten PIN.
 * Per-machine UI settings (`budgetSettings.ybsettings`) and the legacy YNAB 3/Pro formats.
 

@@ -7,10 +7,10 @@ use std::path::Path;
 
 use budget4_core::budget::{account_balances, compute_budget};
 use budget4_core::create::{create_budget, create_budget_with, Starter, BUSINESS_CATEGORIES, PERSONAL_CATEGORIES};
-use budget4_core::editor::{AccountInput, Editor, SplitInput, TransactionInput};
+use budget4_core::editor::{AccountInput, AccountUpdate, Editor, SplitInput, TransactionInput};
 use budget4_core::json::{parse, ObjExt};
 use budget4_core::package::{import_diffs, parse_diff_filename, read_json, BudgetPackage, DiffFileRef, OpenOptions};
-use budget4_core::schema::builtin;
+use budget4_core::schema::{builtin, pre_ynab_debt_category_id};
 use budget4_core::store::Store;
 use budget4_core::vv::VersionVector;
 
@@ -222,6 +222,48 @@ fn two_devices_sync_and_resolve_concurrent_edits() {
     assert_eq!(a.store.get(&t).unwrap().f("amount"), -21.0);
     assert_eq!(b.store.get(&t).unwrap().f("amount"), -21.0);
     assert_eq!(a.store.knowledge.to_string(), b.store.knowledge.to_string());
+}
+
+fn starting_category(store: &Store, account_id: &str) -> Option<String> {
+    let t = store.collection("transactions").into_iter().find(|t| t.str_of("accountId") == Some(account_id)).unwrap();
+    t.str_of("categoryId").map(str::to_string)
+}
+
+#[test]
+fn credit_cards_get_a_pre_ynab_debt_category() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut pkg = create_budget(dir.path(), "Cards", "en_US", opts("Laptop", None)).unwrap();
+    let mut ed = Editor::new(&mut pkg.store, 2);
+    let card = |name: &str, balance: f64| AccountInput {
+        name: name.into(),
+        account_type: "CreditCard".into(),
+        on_budget: true,
+        starting_balance: balance,
+        starting_date: Some("2026-10-01".into()),
+        note: None,
+    };
+    let owed = ed.create_account(&card("Visa", -800.0)).unwrap();
+    let credit = ed.create_account(&card("Store: Card", 50.0)).unwrap();
+
+    let master = ed.store.get(builtin::PRE_YNAB_DEBT_MASTER).unwrap();
+    assert_eq!(master.str_of("name"), Some("Pre-YNAB Debt"));
+    let owed_sub = pre_ynab_debt_category_id(&owed);
+    assert_eq!(ed.store.get(&owed_sub).unwrap().str_of("name"), Some("Visa"));
+    assert_eq!(ed.store.get(&owed_sub).unwrap().str_of("masterCategoryId"), Some(builtin::PRE_YNAB_DEBT_MASTER));
+
+    // Debt it started with is categorized to the debt; a positive starting balance is still income.
+    assert_eq!(starting_category(&ed.store, &owed).as_deref(), Some(owed_sub.as_str()));
+    assert_eq!(starting_category(&ed.store, &credit).as_deref(), Some(builtin::IMMEDIATE_INCOME));
+    // The category is there for a card in credit too, ready for later debt.
+    assert!(ed.store.get(&pre_ynab_debt_category_id(&credit)).is_some());
+
+    // Renaming the card renames its debt category; colons become dashes, as YNAB does.
+    ed.update_account(&owed, &AccountUpdate { name: Some("Visa: Gold".into()), ..Default::default() }).unwrap();
+    assert_eq!(ed.store.get(&owed_sub).unwrap().str_of("name"), Some("Visa- Gold"));
+
+    // Deleting the card retires its debt category too.
+    ed.delete_account(&owed).unwrap();
+    assert!(ed.store.get(&owed_sub).unwrap().tomb());
 }
 
 fn copy_dir(from: &Path, to: &Path) {

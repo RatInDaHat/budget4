@@ -12,6 +12,13 @@ pub mod builtin {
     pub const IMMEDIATE_INCOME: &str = "Category/__ImmediateIncome__";
     pub const DEFERRED_INCOME: &str = "Category/__DeferredIncome__";
     pub const SPLIT: &str = "Category/__Split__";
+    /// YNAB 4's "Pre-YNAB Debt" group, which holds one subcategory per credit-card account.
+    pub const PRE_YNAB_DEBT_MASTER: &str = "MasterCategory/__PreYNABDebtMaster__";
+}
+
+/// The Pre-YNAB debt subcategory YNAB 4 keeps for an account (the id is derived from the account's).
+pub fn pre_ynab_debt_category_id(account_id: &str) -> String {
+    format!("Category/PreYNABDebt/{account_id}")
 }
 
 pub fn is_income_category(id: Option<&str>) -> bool {

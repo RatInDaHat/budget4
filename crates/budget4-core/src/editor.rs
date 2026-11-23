@@ -8,7 +8,7 @@ use crate::budget::Rounder;
 use crate::dates::{add_months, month_key, next_occurrence, today};
 use crate::json::{num, opt_str, Obj, ObjExt};
 use crate::package::new_guid;
-use crate::schema::{blank_entity, builtin, monthly_budget_id, monthly_category_budget_id, transfer_payee_id};
+use crate::schema::{blank_entity, builtin, monthly_budget_id, monthly_category_budget_id, pre_ynab_debt_category_id, transfer_payee_id};
 use crate::store::Store;
 use crate::{Error, Result};
 
@@ -206,6 +206,50 @@ impl<'a> Editor<'a> {
 
     // ------------------------------------------------------------------ accounts
 
+    /// YNAB 4's name for an account's Pre-YNAB debt subcategory (colons aren't allowed in it).
+    fn pre_ynab_debt_name(account_name: &str) -> String {
+        account_name.trim().replace(':', "-")
+    }
+
+    /// Makes sure the "Pre-YNAB Debt" group and this account's subcategory exist (and are live).
+    fn ensure_pre_ynab_debt(&mut self, account_id: &str, account_name: &str) -> Result<String> {
+        let master = builtin::PRE_YNAB_DEBT_MASTER;
+        match self.store.get(master).map(|o| o.tomb()) {
+            None => {
+                let last = self.user_masters().last().map(|x| x.1);
+                let mut m = blank_entity("masterCategory", master);
+                m.insert("name".into(), s("Pre-YNAB Debt"));
+                m.insert("type".into(), s("OUTFLOW"));
+                m.insert("sortableIndex".into(), num(index_between(last, None)));
+                m.insert("deleteable".into(), Value::Bool(false));
+                m.insert("expanded".into(), Value::Bool(true));
+                m.insert("subCategories".into(), Value::Array(vec![]));
+                self.insert(m, None)?;
+            }
+            Some(true) => {
+                self.update(master, vec![("isTombstone", Value::Bool(false))]);
+            }
+            Some(false) => {}
+        }
+        let sub = pre_ynab_debt_category_id(account_id);
+        match self.store.get(&sub).map(|o| o.tomb()) {
+            None => {
+                let last = self.live_subs(master, None).last().map(|x| x.1);
+                let mut c = blank_entity("category", &sub);
+                c.insert("name".into(), s(&Self::pre_ynab_debt_name(account_name)));
+                c.insert("type".into(), s("OUTFLOW"));
+                c.insert("masterCategoryId".into(), s(master));
+                c.insert("sortableIndex".into(), num(index_between(last, None)));
+                self.insert(c, None)?;
+            }
+            Some(true) => {
+                self.update(&sub, vec![("isTombstone", Value::Bool(false))]);
+            }
+            Some(false) => {}
+        }
+        Ok(sub)
+    }
+
     pub fn create_account(&mut self, input: &AccountInput) -> Result<String> {
         let last = self.sorted_live("accounts").last().map(|x| x.1);
         let id = new_guid();
@@ -217,6 +261,18 @@ impl<'a> Editor<'a> {
         a.insert("note".into(), opt_str(input.note.as_deref().filter(|n| !n.is_empty())));
         a.insert("lastEnteredCheckNumber".into(), num(-1.0));
         self.insert(a, None)?;
+
+        // A budgeted credit card gets a Pre-YNAB debt category. Debt it started with (a zero or
+        // negative starting balance) goes there, so it's budgeted to pay off rather than counted as income.
+        let amount = self.r(input.starting_balance);
+        let category = if input.on_budget && input.account_type == "CreditCard" {
+            let debt = self.ensure_pre_ynab_debt(&id, &input.name)?;
+            if amount <= 0.0 { Some(debt) } else { Some(builtin::IMMEDIATE_INCOME.to_string()) }
+        } else if input.on_budget {
+            Some(builtin::IMMEDIATE_INCOME.to_string())
+        } else {
+            None
+        };
 
         let tp_id = transfer_payee_id(&id);
         if !self.store.contains(&tp_id) {
@@ -231,9 +287,9 @@ impl<'a> Editor<'a> {
             vec![
                 ("accountId", s(&id)),
                 ("date", s(input.starting_date.as_deref().unwrap_or(&today()))),
-                ("amount", num(self.r(input.starting_balance))),
+                ("amount", num(amount)),
                 ("payeeId", s(&sb)),
-                ("categoryId", if input.on_budget { s(builtin::IMMEDIATE_INCOME) } else { Value::Null }),
+                ("categoryId", category.as_deref().map_or(Value::Null, s)),
                 ("cleared", s("Cleared")),
             ],
         );
@@ -269,6 +325,10 @@ impl<'a> Editor<'a> {
             if self.is_live(Some(&tp)) {
                 self.update(&tp, vec![("name", s(&format!("Transfer : {}", n.trim())))]);
             }
+            let debt = pre_ynab_debt_category_id(id);
+            if self.is_live(Some(&debt)) {
+                self.update(&debt, vec![("name", s(&Self::pre_ynab_debt_name(n)))]);
+            }
         }
         Ok(())
     }
@@ -297,6 +357,10 @@ impl<'a> Editor<'a> {
         let tp = transfer_payee_id(id);
         if self.is_live(Some(&tp)) {
             self.update(&tp, vec![("isTombstone", Value::Bool(true))]);
+        }
+        let debt = pre_ynab_debt_category_id(id);
+        if self.is_live(Some(&debt)) {
+            self.update(&debt, vec![("isTombstone", Value::Bool(true))]);
         }
         self.update(id, vec![("isTombstone", Value::Bool(true))]);
         Ok(())

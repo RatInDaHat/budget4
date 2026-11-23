@@ -37,7 +37,9 @@ Every record has `entityId`, `entityType`, `entityVersion` (`"<letter>-<counter>
 
 IDs: transfer counterpart `<id>_T_<n>`; transfer payee `Payee/Transfer:<accountId>`; month `MB/YYYY-MM`;
 category budget `MCB/YYYY-MM/<categoryId>`; scheduled occurrence `<scheduleId>_<yyyy-mm-dd>_<n>`; built-ins
-`MasterCategory/__Hidden__|__Income__|__Internal__`, `Category/__ImmediateIncome__|__DeferredIncome__|__Split__`.
+`MasterCategory/__Hidden__|__Income__|__Internal__`, `Category/__ImmediateIncome__|__DeferredIncome__|__Split__`; Pre-YNAB debt: master
+`MasterCategory/__PreYNABDebtMaster__` ("Pre-YNAB Debt") with one subcategory per credit card,
+`Category/PreYNABDebt/<accountId>`.
 Hidden categories move under `__Hidden__` renamed `"<Master> ` <Sub> ` <originalMasterId>"`.
 
 ## Versioning
