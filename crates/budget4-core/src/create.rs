@@ -12,20 +12,57 @@ use crate::serialize::{serialize_full, serialize_tabbed};
 use crate::store::Store;
 use crate::{Error, Result};
 
-pub const DEFAULT_CATEGORIES: &[(&str, &[&str])] = &[
+/// The starter categories YNAB 4 (4.3.857) gives a new personal budget.
+pub const PERSONAL_CATEGORIES: &[(&str, &[&str])] = &[
     ("Giving", &["Tithing", "Charitable"]),
     ("Monthly Bills", &["Rent/Mortgage", "Phone", "Internet", "Cable TV", "Electricity", "Water", "Natural Gas/Propane/Oil"]),
-    ("Everyday Expenses", &["Groceries", "Fuel", "Spending Money", "Restaurants", "Medical/Dental", "Clothing", "Household Goods"]),
+    ("Everyday Expenses", &["Groceries", "Fuel", "Spending Money", "Restaurants", "Medical", "Clothing", "Household Goods"]),
     (
         "Rainy Day Funds",
-        &[
-            "Emergency Fund", "Car Maintenance", "Home Maintenance", "Car Insurance", "Life Insurance", "Health Insurance",
-            "Birthdays", "Christmas", "Renter's/Home Insurance", "Retirement",
-        ],
+        &["Emergency Fund", "Car Repairs", "Home Maintenance", "Car Insurance", "Life Insurance", "Health Insurance", "Birthdays", "Christmas"],
     ),
     ("Savings Goals", &["Car Replacement", "Vacation"]),
     ("Debt", &["Car Payment", "Student Loan Payment", "Personal Loan Payment"]),
 ];
+
+/// The starter categories YNAB 4 gives a new business budget.
+pub const BUSINESS_CATEGORIES: &[(&str, &[&str])] = &[
+    ("Marketing", &["Printing", "Online", "Referral Fees", "Commissions"]),
+    ("Services", &["Accounting", "Legal", "Contractors", "Other"]),
+    ("Office", &["Rent", "Telephone/Fax", "Internet"]),
+    ("General", &["Meals & Entertainment", "Office Supplies"]),
+    ("Travel", &["Automobile", "Hotels/Lodging", "Airfare", "Other"]),
+    ("Taxes & Licenses", &["Unemployment", "Payroll", "Quarterlies"]),
+];
+
+/// Which starter categories a new budget gets (YNAB 4 offers personal and business sets).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Starter {
+    #[default]
+    Personal,
+    Business,
+    /// Only the built-in groups (income, hidden).
+    None,
+}
+
+impl Starter {
+    pub fn parse(s: &str) -> Option<Starter> {
+        match s.to_ascii_lowercase().as_str() {
+            "personal" => Some(Starter::Personal),
+            "business" => Some(Starter::Business),
+            "none" => Some(Starter::None),
+            _ => None,
+        }
+    }
+
+    pub fn categories(self) -> &'static [(&'static str, &'static [&'static str])] {
+        match self {
+            Starter::Personal => PERSONAL_CATEGORIES,
+            Starter::Business => BUSINESS_CATEGORIES,
+            Starter::None => &[],
+        }
+    }
+}
 
 fn hex8() -> String {
     new_guid().replace('-', "")[..8].to_string()
@@ -36,8 +73,14 @@ fn spread(n: usize) -> Vec<f64> {
     (1..=n).map(|i| step * i as f64).collect()
 }
 
-/// Creates "<name>~<hex>.ynab4" in `parent`, registers this machine as device A and opens it.
+/// Creates "<name>~<hex>.ynab4" in `parent` with YNAB 4's personal starter categories, registers
+/// this machine as device A and opens it.
 pub fn create_budget(parent: &Path, name: &str, currency_locale: &str, opts: OpenOptions) -> Result<BudgetPackage> {
+    create_budget_with(parent, name, currency_locale, Starter::Personal, opts)
+}
+
+/// As [`create_budget`], choosing the starter categories.
+pub fn create_budget_with(parent: &Path, name: &str, currency_locale: &str, starter: Starter, opts: OpenOptions) -> Result<BudgetPackage> {
     let clean: String = name.trim().chars().map(|c| if r#"\/:*?"<>|~"#.contains(c) { '_' } else { c }).collect();
     let clean = if clean.is_empty() { "My Budget".to_string() } else { clean };
     let folder = parent.join(format!("{clean}~{}.ynab4", hex8()));
@@ -51,7 +94,7 @@ pub fn create_budget(parent: &Path, name: &str, currency_locale: &str, opts: Ope
     fs::create_dir_all(data.join(&guid)).map_err(|e| Error::io(&data, e))?;
 
     let mut meta = blank_entity("budgetMetaData", &new_guid());
-    meta.insert("budgetType".into(), json!("Personal"));
+    meta.insert("budgetType".into(), json!(if starter == Starter::Business { "Business" } else { "Personal" }));
     meta.insert("currencyLocale".into(), json!(currency_locale));
     meta.insert("dateLocale".into(), json!(currency_locale));
     meta.insert("strictBudget".into(), json!("TRUE"));
@@ -84,9 +127,10 @@ pub fn create_budget(parent: &Path, name: &str, currency_locale: &str, opts: Ope
         m.insert("subCategories".into(), if id == builtin::HIDDEN_MASTER { json!([]) } else { Value::Null });
         store.insert(m, None)?;
     }
+    let starter = starter.categories();
     let master_idx: Vec<f64> =
-        spread(DEFAULT_CATEGORIES.len()).iter().map(|x| (1879048191.0 + (x / 2147483647.0) * (2147483647.0 - 1879048191.0)).floor()).collect();
-    for (i, (master_name, subs)) in DEFAULT_CATEGORIES.iter().enumerate() {
+        spread(starter.len()).iter().map(|x| (1879048191.0 + (x / 2147483647.0) * (2147483647.0 - 1879048191.0)).floor()).collect();
+    for (i, (master_name, subs)) in starter.iter().enumerate() {
         let mid = new_guid();
         let mut m = blank_entity("masterCategory", &mid);
         m.insert("name".into(), json!(master_name));
@@ -96,8 +140,7 @@ pub fn create_budget(parent: &Path, name: &str, currency_locale: &str, opts: Ope
         m.insert("expanded".into(), json!(true));
         m.insert("subCategories".into(), json!([]));
         store.insert(m, None)?;
-        for (j, (sub, idx)) in subs.iter().zip(spread(subs.len())).enumerate() {
-            let _ = j;
+        for (sub, idx) in subs.iter().zip(spread(subs.len())) {
             let mut c = blank_entity("category", &new_guid());
             c.insert("name".into(), json!(sub));
             c.insert("type".into(), json!("OUTFLOW"));

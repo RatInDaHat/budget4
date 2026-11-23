@@ -287,7 +287,8 @@ export const api = {
   app: () => call<AppInfo>('GET', '/api/app'),
   budgets: () => call<BudgetListing[]>('GET', '/api/budgets'),
   open: (folder: string) => call<StateDTO>('POST', '/api/open', { folder }),
-  create: (parent: string, name: string, currencyLocale: string) => call<StateDTO>('POST', '/api/create', { parent, name, currencyLocale }),
+  create: (parent: string, name: string, currencyLocale: string, starter: 'personal' | 'business' | 'none') =>
+    call<StateDTO>('POST', '/api/create', { parent, name, currencyLocale, starter }),
   close: () => call('POST', '/api/close'),
   settings: (s: Partial<Pick<AppInfo, 'friendlyName' | 'enterScheduledTransactions' | 'backupOnFirstSave'>>) => call('POST', '/api/settings', s),
   state: () => call<StateDTO>('GET', '/api/state'),

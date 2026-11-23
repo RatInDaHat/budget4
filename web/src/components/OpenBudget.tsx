@@ -25,6 +25,7 @@ export function OpenBudget({ onOpened }: { onOpened: (s: StateDTO) => void }) {
   const [name, setName] = useState('My Budget');
   const [parent, setParent] = useState('');
   const [locale, setLocale] = useState('en_US');
+  const [starter, setStarter] = useState<'personal' | 'business' | 'none'>('personal');
 
   useEffect(() => {
     api.app().then((i) => {
@@ -50,7 +51,7 @@ export function OpenBudget({ onOpened }: { onOpened: (s: StateDTO) => void }) {
     setBusy('create');
     setError(null);
     try {
-      onOpened(await api.create(parent, name, locale));
+      onOpened(await api.create(parent, name, locale, starter));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -146,6 +147,14 @@ export function OpenBudget({ onOpened }: { onOpened: (s: StateDTO) => void }) {
                     {l}
                   </option>
                 ))}
+              </select>
+            </label>
+            <label>
+              Starter categories
+              <select value={starter} onChange={(e) => setStarter(e.target.value as typeof starter)}>
+                <option value="personal">Personal: Monthly Bills, Everyday Expenses, Rainy Day Funds… (as YNAB 4)</option>
+                <option value="business">Business: Marketing, Services, Office, Travel… (as YNAB 4)</option>
+                <option value="none">None: I'll add my own</option>
               </select>
             </label>
             <div className="row end">

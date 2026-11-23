@@ -6,7 +6,7 @@ use std::fs;
 use std::path::Path;
 
 use budget4_core::budget::{account_balances, compute_budget};
-use budget4_core::create::create_budget;
+use budget4_core::create::{create_budget, create_budget_with, Starter, BUSINESS_CATEGORIES, PERSONAL_CATEGORIES};
 use budget4_core::editor::{AccountInput, Editor, SplitInput, TransactionInput};
 use budget4_core::json::{parse, ObjExt};
 use budget4_core::package::{import_diffs, parse_diff_filename, read_json, BudgetPackage, DiffFileRef, OpenOptions};
@@ -36,6 +36,43 @@ fn account(name: &str, on_budget: bool, balance: f64, date: &str) -> AccountInpu
 
 fn txn(account: &str, date: &str, amount: f64) -> TransactionInput {
     TransactionInput { account_id: account.into(), date: date.into(), amount, ..Default::default() }
+}
+
+#[test]
+fn new_budget_starter_categories() {
+    let user_groups = |pkg: &BudgetPackage| -> Vec<(String, Vec<String>)> {
+        let mut masters: Vec<_> = pkg.store.collection("masterCategories").into_iter().filter(|m| !m.id().starts_with("MasterCategory/__")).collect();
+        masters.sort_by(|a, b| a.f("sortableIndex").total_cmp(&b.f("sortableIndex")));
+        masters
+            .iter()
+            .map(|m| {
+                let mut subs = pkg.store.children(m.id(), "subCategories");
+                subs.sort_by(|a, b| a.f("sortableIndex").total_cmp(&b.f("sortableIndex")));
+                (m.str_of("name").unwrap().to_string(), subs.iter().map(|s| s.str_of("name").unwrap().to_string()).collect())
+            })
+            .collect()
+    };
+    let expect = |set: &[(&str, &[&str])]| -> Vec<(String, Vec<String>)> {
+        set.iter().map(|(m, subs)| (m.to_string(), subs.iter().map(|s| s.to_string()).collect())).collect()
+    };
+    let budget_type = |pkg: &BudgetPackage| pkg.store.budget_meta().and_then(|m| m.str_of("budgetType")).map(str::to_string);
+
+    for (starter, set, kind) in [
+        (Starter::Personal, PERSONAL_CATEGORIES, "Personal"),
+        (Starter::Business, BUSINESS_CATEGORIES, "Business"),
+        (Starter::None, &[][..], "Personal"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let pkg = create_budget_with(dir.path(), "Starter", "en_US", starter, opts("Laptop", None)).unwrap();
+        assert_eq!(user_groups(&pkg), expect(set), "{starter:?}");
+        assert_eq!(budget_type(&pkg).as_deref(), Some(kind));
+        // Reopening reads back the same groups, in order.
+        let again = BudgetPackage::open(&pkg.folder, opts("Laptop", Some(&pkg.device.device_guid))).unwrap();
+        assert_eq!(user_groups(&again), expect(set));
+    }
+    assert_eq!(PERSONAL_CATEGORIES.len(), 6);
+    assert_eq!(PERSONAL_CATEGORIES.iter().map(|(_, s)| s.len()).sum::<usize>(), 29);
+    assert_eq!(BUSINESS_CATEGORIES.iter().map(|(_, s)| s.len()).sum::<usize>(), 20);
 }
 
 #[test]

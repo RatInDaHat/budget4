@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use budget4_core::create::create_budget;
+use budget4_core::create::{create_budget_with, Starter};
 use budget4_core::editor::{AccountInput, AccountUpdate, TransactionInput};
 use budget4_core::package::OpenOptions;
 use serde::Deserialize;
@@ -171,7 +171,8 @@ fn route(st: &mut AppState, method: &str, path: &str, body: &Value) -> Result<(V
                 device_guid: Some(st.config.device_guid.clone()),
                 ..OpenOptions::new(&st.config.friendly_name, APP_VERSION)
             };
-            let pkg = create_budget(&parent, name, locale, opts).map_err(|e| e.to_string())?;
+            let starter = body.get("starter").and_then(Value::as_str).and_then(Starter::parse).unwrap_or_default();
+            let pkg = create_budget_with(&parent, name, locale, starter, opts).map_err(|e| e.to_string())?;
             return Ok((open_session(st, &pkg.folder.display().to_string())?, false));
         }
         ("POST", ["close"]) => {
