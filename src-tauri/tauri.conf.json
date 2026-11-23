@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Budget4",
+  "version": "0.2.0",
+  "identifier": "app.budget4.desktop",
+  "build": {
+    "frontendDist": "../web/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run web",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Budget4",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 800,
+        "minHeight": 560
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"]
+  }
+}

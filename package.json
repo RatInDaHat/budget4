@@ -1,0 +1,29 @@
+{
+  "name": "budget4",
+  "version": "0.2.0",
+  "private": true,
+  "description": "A desktop budgeting app that reads and writes YNAB 4 budget files and syncs alongside YNAB 4 as another device.",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "app": "tauri build",
+    "web": "vite --config web/vite.config.ts",
+    "build": "vite build --config web/vite.config.ts",
+    "test": "cargo test --release",
+    "typecheck": "tsc -p web/tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.5"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-dialog": "^2.8.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.log
+.env
+# Never commit real budget data
+testdata/
+*.ynab4/
+*.yfull
+*.ydiff
+*.y4backup
+
+# Rust
+target/
+src-tauri/gen/
