@@ -19,6 +19,9 @@ pub struct AppConfig {
     pub friendly_name: String,
     #[serde(default)]
     pub recent_budgets: Vec<String>,
+    /// Budget folders removed from the load screen's list. Only the list changes; the folder stays on disk.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hidden_budgets: Vec<String>,
     /// Enter due scheduled transactions on open and when the date changes (YNAB 4 does).
     #[serde(default = "yes")]
     pub enter_scheduled_transactions: bool,
@@ -31,6 +34,17 @@ pub struct AppConfig {
     /// Argon2 hash of the app PIN (see lock.rs); absent when there is none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pin_hash: Option<String>,
+    /// Argon2 hash of the recovery code made with the PIN (see lock.rs); absent when there is none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery_hash: Option<String>,
+}
+
+/// Whether two folder paths name the same place: Windows paths ignore case and treat / and \ alike.
+pub fn same_folder(a: &str, b: &str) -> bool {
+    fn norm(p: &str) -> String {
+        p.replace('/', "\\").trim_end_matches('\\').to_lowercase()
+    }
+    norm(a) == norm(b)
 }
 
 fn yes() -> bool {
@@ -60,10 +74,12 @@ impl AppConfig {
                 device_guid: String::new(),
                 friendly_name: String::new(),
                 recent_budgets: vec![],
+                hidden_budgets: vec![],
                 enter_scheduled_transactions: true,
                 backup_on_first_save: true,
                 csv_mappings: HashMap::new(),
                 pin_hash: None,
+                recovery_hash: None,
             });
         let mut dirty = false;
         if c.device_guid.is_empty() {
@@ -88,9 +104,32 @@ impl AppConfig {
     }
 
     pub fn remember(&mut self, folder: &str) {
-        self.recent_budgets.retain(|f| f != folder);
+        self.recent_budgets.retain(|f| !same_folder(f, folder));
         self.recent_budgets.insert(0, folder.to_string());
         self.recent_budgets.truncate(10);
+        // Opening a budget brings it back onto the list.
+        self.hidden_budgets.retain(|f| !same_folder(f, folder));
         self.save();
+    }
+
+    /// Takes a budget off the load screen's list without touching its folder.
+    pub fn forget(&mut self, folder: &str) {
+        self.recent_budgets.retain(|f| !same_folder(f, folder));
+        if !self.hidden_budgets.iter().any(|f| same_folder(f, folder)) {
+            self.hidden_budgets.push(folder.to_string());
+        }
+        self.save();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::same_folder;
+
+    #[test]
+    fn folder_paths_compare_without_case_or_slash_direction() {
+        assert!(same_folder(r"E:\Budgets\My~1.ynab4\", "e:/budgets/my~1.ynab4"));
+        assert!(same_folder("E:/Budgets/My~1.ynab4/", r"E:\Budgets\My~1.ynab4"));
+        assert!(!same_folder(r"E:\Budgets\My~1.ynab4", r"E:\Budgets\Other~2.ynab4"));
     }
 }

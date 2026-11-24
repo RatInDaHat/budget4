@@ -14,6 +14,7 @@ export function App() {
   const [initial, setInitial] = useState<StateDTO | null>(null);
   const [checked, setChecked] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -36,13 +37,33 @@ export function App() {
 
   const onClosed = useCallback(() => setInitial(null), []);
 
-  if (!checked) return <div className="splash">Loading…</div>;
-  if (locked) return <LockScreen onUnlocked={() => void load()} />;
-  if (!initial) return <OpenBudget onOpened={setInitial} />;
+  const onUnlocked = (msg?: string) => {
+    if (msg) {
+      setNotice(msg);
+      window.setTimeout(() => setNotice(null), 12000);
+    }
+    void load();
+  };
+
+  let body;
+  if (!checked) body = <div className="splash">Loading…</div>;
+  else if (locked) body = <LockScreen onUnlocked={onUnlocked} />;
+  else if (!initial) body = <OpenBudget onOpened={setInitial} />;
+  else
+    body = (
+      <AppProvider initial={initial} onClosed={onClosed} key={initial.budget.folder}>
+        <Shell />
+      </AppProvider>
+    );
   return (
-    <AppProvider initial={initial} onClosed={onClosed} key={initial.budget.folder}>
-      <Shell />
-    </AppProvider>
+    <>
+      {body}
+      {notice && (
+        <div className="toast" role="alert" onClick={() => setNotice(null)}>
+          {notice}
+        </div>
+      )}
+    </>
   );
 }
 

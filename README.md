@@ -31,6 +31,10 @@ Written in Rust (the format, sync engine and budget math) with a React UI in a n
 * Undo / redo (Ctrl+Z, Ctrl+Y) for every edit this session, imports included. An undo is saved as a
   new change, so it syncs to YNAB 4 and other devices; it refuses if the record was changed since.
 * New budgets in YNAB 4's own layout (YNAB 4 can open them).
+* Budget list: "Remove from list" takes a budget off the load screen without touching its folder; opening it
+  again puts it back.
+* Archives: Settings → "Archive budget…" writes the whole budget folder into one zip (saving the full file
+  first), and "Restore from an archive…" on the load screen unpacks it to a folder you choose and opens it.
 
 How the format works and what was verified: [docs/ynab4-format.md](docs/ynab4-format.md).
 
@@ -62,8 +66,10 @@ npm test           # Rust tests (cargo test --release)
 * Settings live in `~/.budget4/config.json` (device GUID, device name, recent budgets).
 * Optional PIN (Settings → PIN): asked for every time Budget4 starts, before any budget is listed or
   opened. It locks the app only; the budget files stay in YNAB 4's unencrypted format so YNAB 4 can
-  still read them. It's stored as an Argon2 hash, and wrong tries are slowed down after five. A
-  forgotten PIN can't be recovered: delete the `pinHash` line from `config.json` to reset it.
+  still read them. It's stored as an Argon2 hash, and wrong tries are slowed down after five. When a
+  PIN is set or changed, Budget4 shows a recovery code once; entering it on the lock screen turns the PIN
+  off, and you set a new one afterwards. Without a code (a PIN set before this), delete the `pinHash`
+  line from `config.json` to reset it.
 
 Try it on a copy of your budget folder first.
 
@@ -79,7 +85,7 @@ next to the repository) and are skipped without it. **Point it at a copy**, neve
 * QIF import; exports (QIF/CSV).
 * Reports; payee rename rules and locations
   (kept and synced, not editable).
-* A separate PIN per budget (today there's one PIN for the app), and a way to recover a forgotten PIN.
+* A separate PIN per budget (today there's one PIN for the app).
 * Per-machine UI settings (`budgetSettings.ybsettings`) and the legacy YNAB 3/Pro formats.
 
 ## Layout

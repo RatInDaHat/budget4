@@ -21,4 +21,5 @@ serde_json = { version = "1", features = ["preserve_order"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 uuid = { version = "1", features = ["v4"] }
 dirs = "6"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 argon2 = "0.5"

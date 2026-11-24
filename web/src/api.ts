@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
 
 export type Cleared = 'Uncleared' | 'Cleared' | 'Reconciled';
 export type Handling = 'AffectsBuffer' | 'Confined';
@@ -279,13 +279,37 @@ export async function pickBankFile(): Promise<string | null> {
   return typeof r === 'string' ? r : null;
 }
 
+/** Asks where to save a budget archive (a single .zip). */
+export async function pickArchiveSave(defaultName: string): Promise<string | null> {
+  const r = await saveDialog({
+    title: 'Archive budget',
+    defaultPath: defaultName,
+    filters: [{ name: 'Budget archive', extensions: ['zip'] }],
+  });
+  return typeof r === "string" ? r : null;
+}
+
+/** Asks for a budget archive made by Archive budget. */
+export async function pickArchiveFile(): Promise<string | null> {
+  const r = await openDialog({
+    directory: false,
+    multiple: false,
+    title: 'Restore a budget archive',
+    filters: [{ name: 'Budget archive', extensions: ['zip'] }],
+  });
+  return typeof r === "string" ? r : null;
+}
+
 export const api = {
-  lockStatus: () => call<{ enabled: boolean; locked: boolean }>('GET', '/api/lock'),
+  lockStatus: () => call<{ enabled: boolean; locked: boolean; hasRecovery: boolean }>('GET', '/api/lock'),
   unlock: (pin: string) => call('POST', '/api/lock/unlock', { pin }),
-  setPin: (pin: string, current?: string) => call('POST', '/api/lock/set', { pin, current }),
+  recover: (code: string) => call<{ pinRemoved: boolean }>('POST', '/api/lock/recover', { code }),
+  setPin: (pin: string, current?: string) => call<{ recoveryCode: string }>('POST', '/api/lock/set', { pin, current }),
   removePin: (current: string) => call('POST', '/api/lock/remove', { current }),
   app: () => call<AppInfo>('GET', '/api/app'),
   budgets: () => call<BudgetListing[]>('GET', '/api/budgets'),
+  /** Takes a budget off the load screen's list. The budget folder is not touched. */
+  forgetBudget: (folder: string) => call('POST', '/api/budgets/forget', { folder }),
   open: (folder: string) => call<StateDTO>('POST', '/api/open', { folder }),
   create: (parent: string, name: string, currencyLocale: string, starter: 'personal' | 'business' | 'none') =>
     call<StateDTO>('POST', '/api/create', { parent, name, currencyLocale, starter }),
@@ -299,6 +323,10 @@ export const api = {
   sync: () => call<{ imported: number; blocked: number; conflicts: number; published: boolean }>('POST', '/api/sync'),
   save: () => call('POST', '/api/save'),
   backup: () => call<{ file: string }>('POST', '/api/backup'),
+  /** Zips the open budget folder to a file outside it. Saves the full file first. */
+  archive: (file: string) => call<{ file: string }>('POST', '/api/archive', { file }),
+  /** Unzips an archive into a parent folder and opens the budget. */
+  restoreArchive: (file: string, parent: string) => call<StateDTO>('POST', '/api/archive/restore', { file, parent }),
 
   saveTransaction: (t: TransactionInput) => call<string>('POST', '/api/transactions', t),
   deleteTransactions: (ids: string[]) => call('POST', '/api/transactions/delete', { ids }),

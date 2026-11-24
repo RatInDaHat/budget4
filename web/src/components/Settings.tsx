@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type AppInfo } from '../api.ts';
+import { api, pickArchiveSave, type AppInfo } from '../api.ts';
 import { relativeTime } from '../format.ts';
 import { useApp } from '../state.tsx';
 import { PinSettings } from './LockScreen.tsx';
@@ -87,6 +87,18 @@ export function Settings() {
             }}
           >
             Write a backup
+          </button>
+          <button
+            onClick={async () => {
+              const today = new Date().toLocaleDateString('en-CA');
+              const safe = state.budget.name.replace(/[\/:*?"<>|]/g, '-');
+              const dest = await pickArchiveSave(`${safe} ${today}.zip`);
+              if (!dest) return;
+              const r = await run(() => api.archive(dest));
+              if (r) setToast(`Archived to ${r.file}`);
+            }}
+          >
+            Archive budget…
           </button>
         </div>
       </section>

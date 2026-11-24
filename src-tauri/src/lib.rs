@@ -4,6 +4,7 @@
 //! earlier HTTP server did. A background thread runs YNAB 4's 5-second sync cycle and tells the UI
 //! about outside changes through the "budget-event" event.
 
+mod archive;
 mod config;
 mod discover;
 mod import;
@@ -50,8 +51,21 @@ fn route_lock(st: &mut AppState, method: &str, seg: &[&str], body: &Value) -> Op
             Err("The current PIN isn't right".into())
         }
     };
+    // Opens the budget the command line named, now that the app is unlocked.
+    let unlock_now = |st: &mut AppState| {
+        st.locked = false;
+        if let Some(folder) = st.pending_open.take() {
+            if let Err(e) = open_session(st, &folder) {
+                eprintln!("Couldn't open {folder}: {e}");
+            }
+        }
+    };
     Some(match (method, seg) {
-        ("GET", ["lock"]) => Ok(json!({"enabled": st.config.pin_hash.is_some(), "locked": st.locked})),
+        ("GET", ["lock"]) => Ok(json!({
+            "enabled": st.config.pin_hash.is_some(),
+            "locked": st.locked,
+            "hasRecovery": st.config.recovery_hash.is_some(),
+        })),
         ("POST", ["lock", "unlock"]) => (|| {
             let Some(hash) = st.config.pin_hash.clone() else {
                 st.locked = false;
@@ -64,24 +78,41 @@ fn route_lock(st: &mut AppState, method: &str, seg: &[&str], body: &Value) -> Op
                 return Err("Wrong PIN".into());
             }
             st.throttle.succeeded();
-            st.locked = false;
-            if let Some(folder) = st.pending_open.take() {
-                if let Err(e) = open_session(st, &folder) {
-                    eprintln!("Couldn't open {folder}: {e}");
-                }
-            }
+            unlock_now(st);
             Ok(ok())
+        })(),
+        // Only while locked: it turns the PIN off, which must never be possible without the PIN otherwise.
+        ("POST", ["lock", "recover"]) if st.locked => (|| {
+            let Some(hash) = st.config.recovery_hash.clone() else {
+                return Err("No recovery code was made for this PIN. Delete the \"pinHash\" line in config.json to reset it.".into());
+            };
+            st.throttle.check()?;
+            let code = str_field(body, "code")?;
+            if !lock::check_recovery(code, &hash) {
+                st.throttle.failed();
+                st.throttle.check()?;
+                return Err("That recovery code isn't right".into());
+            }
+            st.throttle.succeeded();
+            st.config.pin_hash = None;
+            st.config.recovery_hash = None;
+            st.config.save();
+            unlock_now(st);
+            Ok(json!({"ok": true, "pinRemoved": true}))
         })(),
         ("POST", ["lock", "set"]) if !st.locked => (|| {
             let new = lock::hash_pin(&pin()?)?;
             current_ok(st)?;
+            let code = lock::new_recovery_code();
+            st.config.recovery_hash = Some(lock::hash_recovery(&code)?);
             st.config.pin_hash = Some(new);
             st.config.save();
-            Ok(ok())
+            Ok(json!({"ok": true, "recoveryCode": code}))
         })(),
         ("POST", ["lock", "remove"]) if !st.locked => (|| {
             current_ok(st)?;
             st.config.pin_hash = None;
+            st.config.recovery_hash = None;
             st.config.save();
             Ok(ok())
         })(),
@@ -158,8 +189,18 @@ fn route(st: &mut AppState, method: &str, path: &str, body: &Value) -> Result<(V
                 false,
             ))
         }
-        ("GET", ["budgets"]) => return Ok((serde_json::to_value(discover::list_budgets(&st.config.recent_budgets)).unwrap(), false)),
+        ("GET", ["budgets"]) => {
+            return Ok((serde_json::to_value(discover::list_budgets(&st.config.recent_budgets, &st.config.hidden_budgets)).unwrap(), false));
+        }
+        ("POST", ["budgets", "forget"]) => {
+            st.config.forget(str_field(body, "folder")?);
+            return Ok((ok(), false));
+        }
         ("POST", ["open"]) => return Ok((open_session(st, str_field(body, "folder")?)?, false)),
+        ("POST", ["archive", "restore"]) => {
+            let folder = archive::restore(std::path::Path::new(str_field(body, "file")?), std::path::Path::new(str_field(body, "parent")?))?;
+            return Ok((open_session(st, &folder.display().to_string())?, false));
+        }
         ("POST", ["create"]) => {
             let parent = PathBuf::from(str_field(body, "parent")?);
             if !parent.is_dir() {
@@ -226,6 +267,12 @@ fn route(st: &mut AppState, method: &str, path: &str, body: &Value) -> Result<(V
         ("POST", ["save"]) => {
             s.save_full()?;
             Ok((ok(), false))
+        }
+        ("POST", ["archive"]) => {
+            s.save_full()?;
+            let dest = std::path::Path::new(str_field(body, "file")?);
+            archive::write(&s.pkg.folder, dest)?;
+            Ok((json!({"file": dest.display().to_string()}), false))
         }
         ("POST", ["backup"]) => {
             let f = s.pkg.write_backup().map_err(|x| x.to_string())?;

@@ -289,6 +289,15 @@ label.inline {
 .budget-item:hover {
   background: var(--accent-soft);
 }
+.budget-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.budget-row .budget-item {
+  width: 100%;
+}
 .budget-name {
   font-weight: 600;
   font-size: 15px;
@@ -1276,6 +1285,25 @@ body.col-resizing * {
 }
 .settings p {
   margin: 0;
+}
+.recovery {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.recovery-code {
+  font-family: var(--mono, ui-monospace, Consolas, monospace);
+  font-size: 18px;
+  letter-spacing: 0.06em;
+  padding: 8px 10px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  user-select: all;
+  align-self: flex-start;
 }
 .log {
   background: var(--panel);

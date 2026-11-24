@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, pickFolder, type AppInfo, type BudgetListing, type StateDTO } from '../api.ts';
+import { api, pickArchiveFile, pickFolder, type AppInfo, type BudgetListing, type StateDTO } from '../api.ts';
 
 const LOCALES: [string, string][] = [
   ['en_US', 'United States (USD)'],
@@ -47,6 +47,16 @@ export function OpenBudget({ onOpened }: { onOpened: (s: StateDTO) => void }) {
     }
   };
 
+  const forget = async (folder: string) => {
+    setError(null);
+    try {
+      await api.forgetBudget(folder);
+      setBudgets((list) => list.filter((b) => b.folder !== folder));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
   const create = async () => {
     setBusy('create');
     setError(null);
@@ -75,11 +85,19 @@ export function OpenBudget({ onOpened }: { onOpened: (s: StateDTO) => void }) {
             <h2>Your budgets</h2>
             <ul className="budget-list">
               {budgets.map((b) => (
-                <li key={b.folder}>
+                <li key={b.folder} className="budget-row">
                   <button className="budget-item" disabled={!!busy} onClick={() => open(b.folder)}>
                     <span className="budget-name">{b.name}</span>
                     <span className="muted small">{b.folder}</span>
                     {busy === b.folder && <span className="small">Opening…</span>}
+                  </button>
+                  <button
+                    className="link small"
+                    title="Takes this budget off this list. Its folder and files are not deleted."
+                    disabled={!!busy}
+                    onClick={() => forget(b.folder)}
+                  >
+                    Remove from list
                   </button>
                 </li>
               ))}
@@ -113,11 +131,35 @@ export function OpenBudget({ onOpened }: { onOpened: (s: StateDTO) => void }) {
           </button>
         </form>
 
-        {!creating ? (
-          <button className="link" onClick={() => setCreating(true)}>
-            Create a new budget…
-          </button>
-        ) : (
+        {!creating && (
+          <div className="row">
+            <button className="link" onClick={() => setCreating(true)}>
+              Create a new budget…
+            </button>
+            <button
+              className="link"
+              disabled={!!busy}
+              onClick={async () => {
+                const file = await pickArchiveFile();
+                if (!file) return;
+                const parent = await pickFolder('Choose the folder to restore the budget into');
+                if (!parent) return;
+                setBusy('restore');
+                setError(null);
+                try {
+                  onOpened(await api.restoreArchive(file, parent));
+                } catch (e) {
+                  setError((e as Error).message);
+                } finally {
+                  setBusy(null);
+                }
+              }}
+            >
+              Restore from an archive…
+            </button>
+          </div>
+        )}
+        {creating && (
           <div className="create-box">
             <h2>New budget</h2>
             <label>

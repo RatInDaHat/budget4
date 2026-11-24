@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use budget4_core::package::budget_name_from_folder;
 use serde::Serialize;
 use serde_json::Value;
+use crate::config::same_folder;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct BudgetListing {
@@ -78,7 +79,8 @@ pub fn budget_folders() -> Vec<PathBuf> {
     out
 }
 
-pub fn list_budgets(extra: &[String]) -> Vec<BudgetListing> {
+/// Budgets to offer on the load screen: found in the budget folders or recent, minus the ones the user removed from the list.
+pub fn list_budgets(extra: &[String], hidden: &[String]) -> Vec<BudgetListing> {
     let mut seen: BTreeMap<String, BudgetListing> = BTreeMap::new();
     let mut add = |folder: PathBuf| {
         let is_budget = folder.extension().is_some_and(|e| e.eq_ignore_ascii_case("ynab4")) && folder.join("Budget.ymeta").is_file();
@@ -91,7 +93,7 @@ pub fn list_budgets(extra: &[String]) -> Vec<BudgetListing> {
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|d| d.as_millis() as f64)
             .unwrap_or(0.0);
-        let key = folder.display().to_string().to_lowercase();
+        let key = folder.display().to_string().replace('/', "\\").to_lowercase();
         seen.insert(key, BudgetListing { name: budget_name_from_folder(&folder), folder: folder.display().to_string(), modified });
     };
     for parent in budget_folders() {
@@ -105,6 +107,7 @@ pub fn list_budgets(extra: &[String]) -> Vec<BudgetListing> {
         add(PathBuf::from(f));
     }
     let mut v: Vec<BudgetListing> = seen.into_values().collect();
+    v.retain(|b| !hidden.iter().any(|h| same_folder(h, &b.folder)));
     v.sort_by(|a, b| b.modified.total_cmp(&a.modified));
     v
 }
