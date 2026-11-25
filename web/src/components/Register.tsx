@@ -85,24 +85,14 @@ export function Register({ accountId }: { accountId: string | null }) {
     });
   }, [rows, search, hideReconciled, lookups, layout.sort]);
 
-  // Sorted by date, the register opens on the most recent transaction (today or earlier; future
-  // scheduled ones sit past it). Re-applied when the date sort direction changes.
+  // Sorted by date, the register opens on the newest end. Re-applied when the date sort direction changes.
   const jump = useMemo(() => {
     if (layout.sort.col !== 'date' || filtered.length === 0) return null;
-    const now = today();
     const desc = layout.sort.desc;
-    let index = desc ? filtered.length - 1 : 0;
-    if (desc) {
-      const i = filtered.findIndex((t) => t.date <= now);
-      if (i >= 0) index = i;
-    } else {
-      for (let i = filtered.length - 1; i >= 0; i--)
-        if (filtered[i].date <= now) {
-          index = i;
-          break;
-        }
-    }
-    return { key: `date:${desc}`, index, align: desc ? ('start' as const) : ('end' as const) };
+    // Always open on the newest end, so future (italic) rows and the entry row are in view:
+    // oldest first shows the bottom, newest first shows the top (where the entry row is pinned).
+    if (!desc) return { key: 'date:false', index: filtered.length - 1, align: 'bottom' as const };
+    return { key: 'date:true', index: 0, align: 'start' as const };
   }, [filtered, layout.sort]);
 
   const unapproved = useMemo(() => (rows ?? []).filter((t) => !t.accepted).map((t) => t.id), [rows]);
@@ -233,6 +223,7 @@ export function Register({ accountId }: { accountId: string | null }) {
         empty={rows === null ? 'Loading…' : filtered.length === 0 ? (search ? 'No matching transactions.' : 'No transactions yet.') : null}
         rows={filtered}
         jump={jump}
+        entryAtEnd={layout.sort.col === 'date' && !layout.sort.desc}
         entry={
           entry ? (
             <InlineRow
@@ -358,16 +349,21 @@ function VirtualRows({
   empty,
   jump,
   entry,
+  entryAtEnd,
 }: {
   rows: TxnDTO[];
-  jump: { key: string; index: number; align: 'start' | 'end' } | null;
-  /** The new-transaction row, pinned under the column headings. */
+  jump: { key: string; index: number; align: 'start' | 'end' | 'bottom' } | null;
+  /** The new-transaction row: pinned under the headings, or after the last row when sorted by date ascending. */
   entry: React.ReactNode;
+  /** Put the entry row after the rows (newest last) instead of pinning it under the headings. */
+  entryAtEnd: boolean;
   render: (t: TxnDTO) => React.ReactNode;
   head: React.ReactNode;
   minWidth: number;
   empty: string | null;
 }) {
+  // Rows start below the headings, and below the entry row too when it is pinned.
+  const lead = entryAtEnd ? HEAD : LEAD;
   const ref = useRef<HTMLDivElement>(null);
   const [scroll, setScroll] = useState(0);
   const [height, setHeight] = useState(600);
@@ -393,11 +389,12 @@ function VirtualRows({
     if (!el || !jump || jumped.current === jump.key || jump.index >= offsets.length) return;
     jumped.current = jump.key;
     // Rows start below the pinned headings and entry row, which also cover the top of the view.
-    const top = LEAD + offsets[jump.index];
-    el.scrollTop = jump.align === 'start' ? top - LEAD : top + heights[jump.index] - el.clientHeight;
+    const top = lead + offsets[jump.index];
+    el.scrollTop =
+      jump.align === 'bottom' ? el.scrollHeight : jump.align === 'start' ? top - lead : top + heights[jump.index] - el.clientHeight;
     setScroll(el.scrollTop);
   });
-  const scrollRows = Math.max(0, scroll - LEAD);
+  const scrollRows = Math.max(0, scroll - lead);
   let start = 0;
   let lo = 0;
   let hi = rows.length - 1;
@@ -413,7 +410,7 @@ function VirtualRows({
     <div className="reg-body" ref={ref} onScroll={(e) => setScroll((e.target as HTMLDivElement).scrollTop)}>
       <div className="reg-scroll" style={{ minWidth }}>
         {head}
-        <div className="reg-entry">{entry}</div>
+        {!entryAtEnd && <div className="reg-entry">{entry}</div>}
         {empty !== null ? (
           <div className="empty">{empty}</div>
         ) : (
@@ -430,6 +427,7 @@ function VirtualRows({
             </div>
           </div>
         )}
+        {entryAtEnd && <div className="reg-entry-end">{entry}</div>}
       </div>
     </div>
   );

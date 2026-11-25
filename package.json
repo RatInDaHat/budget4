@@ -1,6 +1,6 @@
 {
   "name": "budget4",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "A desktop budgeting app that reads and writes YNAB 4 budget files and syncs alongside YNAB 4 as another device.",
   "type": "module",

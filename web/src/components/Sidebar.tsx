@@ -8,6 +8,7 @@ export function Sidebar() {
   const { state, view, setView, run, undo } = useApp();
   const [adding, setAdding] = useState(false);
   const [showClosed, setShowClosed] = useState(false);
+  const [drag, setDrag] = useState<DragState | null>(null);
   if (!state) return null;
 
   const open = state.accounts.filter((a) => !a.hidden);
@@ -18,15 +19,15 @@ export function Sidebar() {
   const active = (id: string | null) => view.kind === 'account' && view.accountId === id;
   const sync = state.sync;
 
-  const AccountRow = ({ a }: { a: AccountDTO }) => (
-    <button className={`nav-account ${active(a.id) ? 'active' : ''}`} onClick={() => setView({ kind: 'account', accountId: a.id })} title={a.name}>
-      <span className="acct-name">
-        {a.name}
-        {a.unapproved > 0 && <span className="badge" title={`${a.unapproved} unapproved`}>{a.unapproved}</span>}
-      </span>
-      <span className={`amount ${a.balances.working < 0 ? 'neg' : ''}`}>{money(a.balances.working)}</span>
-    </button>
-  );
+  const ctx: RowContext = {
+    selectedId: view.kind === 'account' ? view.accountId : null,
+    drag,
+    setDrag,
+    move: (id, beforeId) => {
+      if (beforeId !== id) void run(() => api.moveAccount(id, beforeId));
+    },
+    select: (id) => setView({ kind: 'account', accountId: id }),
+  };
 
   return (
     <aside className="sidebar">
@@ -55,7 +56,7 @@ export function Sidebar() {
           <span className="amount">{money(total(onBudget))}</span>
         </div>
         {onBudget.map((a) => (
-          <AccountRow key={a.id} a={a} />
+          <AccountRow key={a.id} a={a} group={onBudget} ctx={ctx} />
         ))}
       </div>
       {offBudget.length > 0 && (
@@ -65,7 +66,7 @@ export function Sidebar() {
             <span className="amount">{money(total(offBudget))}</span>
           </div>
           {offBudget.map((a) => (
-            <AccountRow key={a.id} a={a} />
+            <AccountRow key={a.id} a={a} group={offBudget} ctx={ctx} />
           ))}
         </div>
       )}
@@ -76,7 +77,7 @@ export function Sidebar() {
               {showClosed ? '▾' : '▸'} Closed ({closed.length})
             </span>
           </button>
-          {showClosed && closed.map((a) => <AccountRow key={a.id} a={a} />)}
+          {showClosed && closed.map((a) => <AccountRow key={a.id} a={a} group={closed} ctx={ctx} />)}
         </div>
       )}
       <button className="add-account" onClick={() => setAdding(true)}>
@@ -124,6 +125,77 @@ export function Sidebar() {
       </div>
       {adding && <AccountDialog onClose={() => setAdding(false)} />}
     </aside>
+  );
+}
+
+interface DragState {
+  id: string;
+  over: string | null;
+  pos: 'before' | 'after';
+}
+
+interface RowContext {
+  selectedId: string | null;
+  drag: DragState | null;
+  setDrag: (d: DragState | null) => void;
+  move: (id: string, beforeId: string | null) => void;
+  select: (id: string) => void;
+}
+
+/** One account in the sidebar. Drag it within its own group (budget or off-budget), or use Alt+Up / Alt+Down. */
+function AccountRow({ a, group, ctx }: { a: AccountDTO; group: AccountDTO[]; ctx: RowContext }) {
+  const { drag, setDrag, move } = ctx;
+  const idx = group.findIndex((x) => x.id === a.id);
+  const dropPos = drag && drag.over === a.id ? drag.pos : null;
+  const sameGroup = !!drag && group.some((x) => x.id === drag.id);
+  // The account is placed before `a`, or before the account that follows it in this group.
+  const beforeFor = (pos: 'before' | 'after') => (pos === 'before' ? a.id : (group[idx + 1]?.id ?? null));
+  return (
+    <div
+      className={`acct-drag ${dropPos ? `drop-${dropPos}` : ''} ${drag?.id === a.id ? 'dragging' : ''}`}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', a.id);
+        setDrag({ id: a.id, over: null, pos: 'before' });
+      }}
+      onDragEnd={() => setDrag(null)}
+      onDragOver={(e) => {
+        if (!drag || !sameGroup) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const r = e.currentTarget.getBoundingClientRect();
+        const pos = e.clientY < r.top + r.height / 2 ? 'before' : 'after';
+        if (drag.over !== a.id || drag.pos !== pos) setDrag({ id: drag.id, over: a.id, pos });
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        if (!drag || drag.id === a.id) {
+          setDrag(null);
+          return;
+        }
+        move(drag.id, beforeFor(drag.over === a.id ? drag.pos : 'before'));
+        setDrag(null);
+      }}
+    >
+      <button
+        className={`nav-account ${ctx.selectedId === a.id ? 'active' : ''}`}
+        onClick={() => ctx.select(a.id)}
+        onKeyDown={(e) => {
+          if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+          e.preventDefault();
+          if (e.key === 'ArrowUp' && idx > 0) move(a.id, group[idx - 1].id);
+          if (e.key === 'ArrowDown' && idx < group.length - 1) move(a.id, group[idx + 2]?.id ?? null);
+        }}
+        title={`${a.name}. Drag to reorder, or Alt+Up / Alt+Down.`}
+      >
+        <span className="acct-name">
+          {a.name}
+          {a.unapproved > 0 && <span className="badge" title={`${a.unapproved} unapproved`}>{a.unapproved}</span>}
+        </span>
+        <span className={`amount ${a.balances.working < 0 ? 'neg' : ''}`}>{money(a.balances.working)}</span>
+      </button>
+    </div>
   );
 }
 

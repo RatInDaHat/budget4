@@ -395,6 +395,28 @@ label.inline {
 .nav-account.active {
   background: var(--side-active);
 }
+.acct-drag {
+  position: relative;
+}
+.acct-drag.dragging {
+  opacity: 0.4;
+}
+.acct-drag.drop-before::before,
+.acct-drag.drop-after::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.acct-drag.drop-before::before {
+  top: -1px;
+}
+.acct-drag.drop-after::after {
+  bottom: -1px;
+}
 .acct-group {
   display: flex;
   flex-direction: column;
@@ -977,6 +999,11 @@ label.inline {
   height: 34px;
   background: var(--panel);
   box-shadow: 0 1px 0 var(--line), 0 2px 4px rgb(0 0 0 / 6%);
+}
+.reg-entry-end {
+  height: 34px;
+  background: var(--panel);
+  box-shadow: 0 -1px 0 var(--line), 0 -2px 4px rgb(0 0 0 / 6%);
 }
 .reg-group.new-entry .reg-row {
   background: var(--panel);

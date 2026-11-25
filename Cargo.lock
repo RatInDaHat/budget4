@@ -216,7 +216,7 @@ dependencies = [
 
 [[package]]
 name = "budget4"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "argon2",
  "budget4-core",
@@ -233,7 +233,7 @@ dependencies = [
 
 [[package]]
 name = "budget4-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "base64 0.22.1",
  "chrono",
