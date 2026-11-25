@@ -8,6 +8,7 @@ testdata/
 *.yfull
 *.ydiff
 *.y4backup
+*.zip
 
 # Rust
 target/
