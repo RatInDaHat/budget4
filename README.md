@@ -8,11 +8,10 @@ Written in Rust (the format, sync engine and budget math) with a React UI in a n
 
 ## Why this exists
 
-YNAB 4 is no longer supported, but it has been the author's budgeting tool for years, and the
-budget files still work. The newer YNAB is a cloud service, and for several reasons this author
-did not want to put their money data there. Rather than move to it, Budget4 keeps the existing
-budget in its own folder and works with it directly, so the data never leaves the computer or
-the Dropbox folder it already lived in.
+YNAB 4 is no longer supported, but I have used it for years, and my budget files still work. The
+newer YNAB is a cloud service, and for several reasons I did not want my money data in the cloud.
+Rather than move to it, I built Budget4 to keep working with my budget in its own folder, so the
+data never leaves the computer or the Dropbox folder it already lived in.
 
 > **Back up your budget first.** Budget4 writes into a live YNAB 4 budget. It has been checked
 > carefully against real budgets (see [Safety](#safety)), but a bug could still damage your data.
