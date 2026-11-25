@@ -90,6 +90,8 @@ next to the repository) and are skipped without it. **Point it at a copy**, neve
 ## Not done yet
 
 * QIF import; exports (QIF/CSV).
+* Drag bank files (QFX especially) onto the window to import them.
+* File associations, so double-clicking a QFX file imports it (opening Budget4 first if it isn't running).
 * Reports; payee rename rules and locations
   (kept and synced, not editable).
 * A separate PIN per budget (today there's one PIN for the app).
