@@ -4,6 +4,7 @@
 
 use std::path::Path;
 
+use base64::Engine;
 use budget4_core::editor::Editor;
 use budget4_core::importing::{
     csv_transactions, decode_text, guess_csv_mapping, parse_ofx, read_csv, valid_date_orders, BankTxn, CsvMapping, ImportOptions,
@@ -55,8 +56,24 @@ fn load(config: &AppConfig, s: &mut Session, body: &Value) -> Result<Value, Stri
         return Err("That file is too large to be a bank export".into());
     }
     let bytes = std::fs::read(p).map_err(|e| format!("Can't read {path}: {e}"))?;
-    let text = decode_text(&bytes);
     let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    load_bytes(config, s, name, &bytes, body)
+}
+
+/// A bank file sent by the UI as its contents (dropped onto the window, where no path is known).
+fn upload(config: &AppConfig, s: &mut Session, body: &Value) -> Result<Value, String> {
+    let name = body.get("name").and_then(Value::as_str).ok_or("Missing name")?.to_string();
+    let data = body.get("data").and_then(Value::as_str).ok_or("Missing data")?;
+    let bytes = base64::engine::general_purpose::STANDARD.decode(data).map_err(|_| "That file didn't arrive intact. Try again.".to_string())?;
+    load_bytes(config, s, name, &bytes, body)
+}
+
+fn load_bytes(config: &AppConfig, s: &mut Session, name: String, bytes: &[u8], body: &Value) -> Result<Value, String> {
+    if bytes.len() as u64 > MAX_FILE_BYTES {
+        return Err("That file is too large to be a bank export".into());
+    }
+    let text = decode_text(bytes);
+    let p = Path::new(&name);
     if is_ofx(p, &text) {
         let statements = parse_ofx(&text, s.decimals).map_err(|e| e.to_string())?;
         if statements.is_empty() {
@@ -190,6 +207,7 @@ fn commit(config: &mut AppConfig, s: &mut Session, body: &Value) -> Result<Value
 pub fn route(config: &mut AppConfig, s: &mut Session, method: &str, seg: &[&str], body: &Value) -> Result<(Value, bool), String> {
     match (method, seg) {
         ("POST", ["import", "load"]) => Ok((load(config, s, body)?, false)),
+        ("POST", ["import", "upload"]) => Ok((upload(config, s, body)?, false)),
         ("POST", ["import", "preview"]) => Ok((preview(s, body)?, false)),
         ("POST", ["import", "commit"]) => Ok((commit(config, s, body)?, true)),
         ("POST", ["import", "cancel"]) => {

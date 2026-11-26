@@ -35,7 +35,18 @@ function range(from: string | null, to: string | null): string {
   return from === to ? formatDate(from) : `${formatDate(from)} – ${formatDate(to)}`;
 }
 
-export function ImportDialog({ defaultAccountId, onClose }: { defaultAccountId: string | null; onClose: () => void }) {
+/** A bank file to import: a path on disk, or the contents of a file dropped onto the window. */
+export type ImportSource = { id: number; kind: 'path'; path: string } | { id: number; kind: 'data'; name: string; data: string };
+
+export function ImportDialog({
+  defaultAccountId,
+  source,
+  onClose,
+}: {
+  defaultAccountId: string | null;
+  source?: ImportSource;
+  onClose: () => void;
+}) {
   const { state, refresh, setToast, lookups } = useApp();
   const [file, setFile] = useState<LoadedFile | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -54,15 +65,13 @@ export function ImportDialog({ defaultAccountId, onClose }: { defaultAccountId: 
 
   const [typedPath, setTypedPath] = useState('');
 
-  const choose = async (given?: string) => {
-    const path = given ?? (await pickBankFile());
-    if (!path) return;
+  const load = async (read: () => Promise<LoadedFile>) => {
     setBusy('Reading the file…');
     setError(null);
     setPreview(null);
     setIncludeBefore(false);
     try {
-      const f = await api.importLoad(path, defaultAccountId);
+      const f = await read();
       setFile(f);
       if (f.kind === 'ofx') {
         const single = f.statements.length === 1;
@@ -86,6 +95,19 @@ export function ImportDialog({ defaultAccountId, onClose }: { defaultAccountId: 
       setBusy(null);
     }
   };
+
+  const choose = async (given?: string) => {
+    const path = given ?? (await pickBankFile());
+    if (!path) return;
+    await load(() => api.importLoad(path, defaultAccountId));
+  };
+
+  // A file handed to the dialog (dropped, or opened from Windows) is read straight away.
+  useEffect(() => {
+    if (!source) return;
+    void load(() => (source.kind === 'path' ? api.importLoad(source.path, defaultAccountId) : api.importUpload(source.name, source.data, defaultAccountId)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per source
+  }, [source?.id]);
 
   const request = (i: number): ImportRequest | null => {
     const c = choices[i];

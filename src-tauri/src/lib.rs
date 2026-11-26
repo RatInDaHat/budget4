@@ -33,6 +33,20 @@ pub struct AppState {
     throttle: lock::Throttle,
     /// A budget folder given on the command line, opened once the PIN is entered.
     pending_open: Option<String>,
+    /// Bank files handed to the app (double-clicked, or sent by a second launch), waiting for a budget to import into.
+    incoming: Vec<String>,
+}
+
+/// The bank files among some command-line arguments (the program path is skipped by the caller).
+fn bank_files<'a>(args: impl Iterator<Item = &'a String>) -> Vec<String> {
+    args.filter(|a| {
+        PathBuf::from(a.as_str())
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| matches!(e.to_ascii_lowercase().as_str(), "qfx" | "ofx" | "qbo" | "csv"))
+    })
+    .cloned()
+    .collect()
 }
 
 const LOCKED: &str = "Budget4 is locked";
@@ -174,6 +188,11 @@ fn route(st: &mut AppState, method: &str, path: &str, body: &Value) -> Result<(V
 
     // Routes that don't need an open budget.
     match (method, seg.as_slice()) {
+        // Bank files waiting to be imported. They stay queued until a budget is open to take them.
+        ("GET", ["incoming"]) => {
+            let list = if st.session.is_some() { std::mem::take(&mut st.incoming) } else { Vec::new() };
+            return Ok((json!(list), false));
+        }
         ("GET", ["app"]) => {
             let c = &st.config;
             return Ok((
@@ -494,10 +513,26 @@ fn api(app: tauri::AppHandle, state: tauri::State<'_, Shared>, method: String, p
 pub fn run() {
     let config = AppConfig::load();
     let locked = config.pin_hash.is_some();
-    let shared: Shared = Arc::new(Mutex::new(AppState { config, session: None, locked, throttle: Default::default(), pending_open: None }));
+    let incoming = bank_files(std::env::args().skip(1).collect::<Vec<_>>().iter());
+    let shared: Shared =
+        Arc::new(Mutex::new(AppState { config, session: None, locked, throttle: Default::default(), pending_open: None, incoming }));
     let initial = std::env::args().nth(1).filter(|a| PathBuf::from(a).join("Budget.ymeta").is_file());
 
     tauri::Builder::default()
+        // First, so a second launch (a double-clicked bank file) hands its arguments to this window and exits.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            let files = bank_files(argv.iter().skip(1));
+            if let Some(state) = app.try_state::<Shared>() {
+                if let Ok(mut st) = state.lock() {
+                    st.incoming.extend(files);
+                }
+            }
+            let _ = app.emit("incoming", ());
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .manage(shared.clone())
         .invoke_handler(tauri::generate_handler![api])

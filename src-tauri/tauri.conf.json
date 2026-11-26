@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Budget4",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "identifier": "app.budget4.desktop",
   "build": {
     "frontendDist": "../web/dist",
@@ -27,6 +27,14 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"]
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "fileAssociations": [
+      {
+        "ext": ["qfx", "ofx", "qbo"],
+        "name": "Bank export",
+        "description": "Bank export file (imported with Budget4)",
+        "role": "Editor"
+      }
+    ]
   }
 }

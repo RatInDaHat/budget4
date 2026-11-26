@@ -279,6 +279,14 @@ export async function pickBankFile(): Promise<string | null> {
   return typeof r === 'string' ? r : null;
 }
 
+/** A file's contents as base64, for sending to the app. */
+export async function fileBase64(f: File): Promise<string> {
+  const bytes = new Uint8Array(await f.arrayBuffer());
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
 /** Asks where to save a budget archive (a single .zip). */
 export async function pickArchiveSave(defaultName: string): Promise<string | null> {
   const r = await saveDialog({
@@ -338,6 +346,9 @@ export const api = {
   redo: () => call<{ label: string }>('POST', '/api/redo'),
 
   importLoad: (path: string, accountId: string | null) => call<LoadedFile>('POST', '/api/import/load', { path, accountId }),
+  importUpload: (name: string, data: string, accountId: string | null) => call<LoadedFile>('POST', '/api/import/upload', { name, data, accountId }),
+  /** Bank files handed to the app (double-clicked or dropped with no budget open yet). Taken once: the list is then empty. */
+  incoming: () => call<string[]>('GET', '/api/incoming'),
   importPreview: (r: ImportRequest) => call<ImportPreview>('POST', '/api/import/preview', r),
   importCommit: (r: ImportRequest) => call<ImportSummary & { problems: number; remembered: boolean; skipped?: boolean }>('POST', '/api/import/commit', r),
   importCancel: () => call('POST', '/api/import/cancel'),

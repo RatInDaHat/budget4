@@ -28,7 +28,8 @@ data never leaves the computer or the Dropbox folder it already lived in.
 * Importing bank files: OFX, QFX, QBO and CSV (any column layout). Like YNAB 4 it skips transactions
   imported before, matches the rest to ones you entered (approve or unmatch them in the register),
   applies payee rename rules and auto-fill categories, and remembers which bank account goes where in
-  the budget itself, so YNAB 4's saved choices are reused and vice versa.
+  the budget itself, so YNAB 4's saved choices are reused and vice versa. Drop a file onto the budget
+  window, or double-click a QFX, OFX or QBO file (Budget4 registers for them on install), to import it.
 * Registers: click a column header to sort (again to reverse), drag header edges to resize; each
   account shows its scheduled transactions in a collapsible panel at the bottom. The Scheduled
   page sorts by any column too.
@@ -89,9 +90,7 @@ next to the repository) and are skipped without it. **Point it at a copy**, neve
 
 ## Not done yet
 
-* QIF import; exports (QIF/CSV).
-* Drag bank files (QFX, and QIF once it's supported) onto the window to import them.
-* File associations for bank files (QFX, and QIF once it's supported), so double-clicking one imports it (opening Budget4 first if it isn't running).
+* QIF import, with drag-and-drop and double-click like the other bank files; exports (QIF/CSV).
 * Reports; payee rename rules and locations
   (kept and synced, not editable).
 * A separate PIN per budget (today there's one PIN for the app).
